@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <cstdint>
 
 enum : int {
     PPC_F_I,
@@ -113,6 +114,13 @@ struct ppc_instruction {
     std::string page;
 };
 
+struct ppc_decode_info {
+    uint32_t primary;
+    uint32_t xom;
+    uint32_t xop;
+    std::string name;
+};
+
 int main() {
     std::ifstream file("ppc.txt");
     std::vector <std::string> parts;
@@ -181,26 +189,75 @@ int main() {
         parts.clear();
     }
 
+    std::vector <ppc_decode_info> decode_table[64];
+
     for (ppc_instruction& i : instructions) {
         uint32_t mask = 0xfc000000;
         uint32_t match = i.primary << 26;
+        int form = ppc_format_map[i.fmt];
 
-        if ((int)i.extend != -1) {
-            int form = ppc_format_map[i.fmt];
+        // if ((int)i.extend != -1) {
+        //     mask |= ppc_xom[form];
+        //     match |= i.extend << ppc_xop[form];
 
-            mask |= ppc_xom[form];
-            match |= i.extend << ppc_xop[form];
+        //     if ((i.extend << ppc_xop[form]) & ~ppc_xom[form]) {
+        //         printf("ERROR! XO ov fmt=%s code=%08x (%d) mask=%08x pos=%d\n",
+        //             i.fmt.c_str(),
+        //             i.extend << ppc_xop[form], i.extend << ppc_xop[form],
+        //             ppc_xom[form],
+        //             ppc_xop[form]
+        //         );
+        //     }
+        // }
 
-            if ((i.extend << ppc_xop[form]) & ~ppc_xom[form]) {
-                printf("ERROR! XO ov fmt=%s code=%08x (%d) mask=%08x pos=%d\n",
-                    i.fmt.c_str(),
-                    i.extend << ppc_xop[form], i.extend << ppc_xop[form],
-                    ppc_xom[form],
-                    ppc_xop[form]
+        std::string name = i.mnemonic;
+
+        name = name.substr(0, name.find('['));
+
+        auto dot = name.find('.');
+
+        if (dot != std::string::npos)
+            name = name.replace(dot, 1, "_u");
+
+        decode_table[i.primary].push_back({ i.primary << 26, ppc_xom[form], i.extend << ppc_xop[form], name });
+    }
+
+    printf("switch ((cpu->opcode & 0xfc000000) >> 26) {\n");
+
+    for (auto& v : decode_table) {
+        if (!v.size())
+            continue;
+
+        if (v.size() == 1) {
+            printf("    case 0x%08xul >> 26: ppc_%s(cpu); break;\n", v[0].primary, v[0].name.c_str());
+        } else {
+            printf("    case 0x%08xul >> 26: {\n", v[0].primary);
+
+            std::sort(v.begin(), v.end(), [](ppc_decode_info a, const ppc_decode_info& b) -> bool {
+                return a.xom > b.xom;
+            });
+
+            uint32_t xom = v[0].xom;
+            int ffs = __builtin_ffs(xom) - 1;
+
+            printf("        switch ((cpu->opcode & 0x%08x) >> %d) {\n", xom, ffs);
+
+            for (const ppc_decode_info& d : v) {
+                if (d.xom != xom) {
+                    xom = d.xom;
+                    ffs = __builtin_ffs(xom) - 1;
+
+                    printf("        }\n        switch ((cpu->opcode & 0x%08x) >> %d) {\n", xom, ffs);
+                }
+
+                printf("            case 0x%08xul >> %d: ppc_%s(cpu); break;\n",
+                    d.xop, ffs, d.name.c_str()
                 );
             }
-        }
 
-        printf("%08x %08x %s\n", mask, match, i.mnemonic.c_str());
+            printf("        }\n    } break;\n");
+        }
     }
+
+    printf("}\n");
 }
