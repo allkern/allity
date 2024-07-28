@@ -219,8 +219,24 @@ int main() {
         if (dot != std::string::npos)
             name = name.replace(dot, 1, "_u");
 
+        i.mnemonic = name;
+
         decode_table[i.primary].push_back({ i.primary << 26, ppc_xom[form], i.extend << ppc_xop[form], name });
     }
+
+    std::sort(
+        instructions.begin(),
+        instructions.end(),
+        [](const ppc_instruction& a, const ppc_instruction& b) {
+            return a.mnemonic[0] < b.mnemonic[0];
+        }
+    );
+
+    for (ppc_instruction& i : instructions) {
+        printf("static void ppc_%s(struct ppc_state* cpu);\n", i.mnemonic.c_str());
+    }
+
+    exit(1);
 
     printf("switch ((cpu->opcode & 0xfc000000) >> 26) {\n");
 
