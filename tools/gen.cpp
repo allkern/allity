@@ -104,6 +104,12 @@ std::vector <uint32_t> get_contiguous_masks(uint32_t m) {
     return masks;
 }
 
+struct ppc_disassembly {
+    std::string form;
+    std::string name;
+    std::vector <std::string> operands;
+};
+
 struct ppc_instruction {
     std::string fmt;
     uint32_t primary;
@@ -123,10 +129,10 @@ struct ppc_decode_info {
 
 int main() {
     std::ifstream file("ppc.txt");
+    std::ifstream dis("ppc_disassembly_pre.txt");
     std::vector <std::string> parts;
     std::vector <ppc_instruction> instructions;
-
-    char c;
+    std::vector <ppc_disassembly> disassembly_table;
 
     while (!file.eof()) {
         ppc_instruction i;
@@ -150,6 +156,8 @@ int main() {
         i.primary = std::stoul(parts[1]);
         i.mnemonic = parts.back();
         i.page = parts.at(parts.size() - 2);
+
+        i.mnemonic = i.mnemonic.substr(0, i.mnemonic.find('['));
 
         // Get rid of form, primary, page/book and mnemonic
         parts.erase(std::begin(parts), std::begin(parts) + 2);
@@ -188,6 +196,44 @@ int main() {
 
         parts.clear();
     }
+
+    while (!dis.eof()) {
+        ppc_disassembly d;
+        std::string line;
+        std::string buf;
+        std::getline(dis, line);
+        std::istringstream ss(line);
+        std::getline(ss, d.name, ' ');
+
+        while (!ss.eof()) {
+            std::string operand;
+            std::getline(ss, operand, ',');
+
+            d.operands.push_back(operand);
+        }
+
+        disassembly_table.push_back(d);
+    }
+
+    int j = 0;
+
+    for (ppc_instruction& i : instructions) {
+        printf("mnemonic=%s\n", i.mnemonic.c_str());
+        auto it = std::find_if(
+            disassembly_table.begin(),
+            disassembly_table.end(),
+            [i](ppc_disassembly& v) { return v.name == i.mnemonic; }
+        );
+
+        if (it != disassembly_table.end())
+            (*it).form = i.fmt;
+    }
+
+    for (ppc_disassembly& d : disassembly_table) {
+        printf("form=%s name=%s\n", d.form.c_str(), d.name.c_str());
+    }
+
+    return 0;
 
     std::vector <ppc_decode_info> decode_table[64];
 
@@ -233,6 +279,7 @@ int main() {
     );
 
     for (ppc_instruction& i : instructions) {
+        printf("// %s\n", i.description.c_str());
         printf("static void ppc_%s(struct ppc_state* cpu);\n", i.mnemonic.c_str());
     }
 

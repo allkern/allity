@@ -1,7 +1,9 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "ppc.h"
+#include "ppc_dis.h"
 
 struct ppc_state* ppc_create(struct ppc_bus bus) {
     struct ppc_state* cpu = malloc(sizeof(struct ppc_state));
@@ -49,8 +51,17 @@ inline void ppc_write64(struct ppc_state* cpu, uint32_t addr, uint64_t data) {
     cpu->bus.write64(cpu->bus.udata, addr, data);
 }
 
+static struct ppc_dis_state dis_state;
+static char buf[128];
+
 int ppc_execute(struct ppc_state* cpu) {
     cpu->opcode = ppc_read32(cpu, cpu->pc);
+
+    // dis_state.pc = cpu->pc;
+    // dis_state.print_address = 1;
+    // dis_state.print_opcode = 1;
+
+    // puts(ppc_disassemble(&dis_state, buf, cpu->opcode));
 
     cpu->pc += 4;
 

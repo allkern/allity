@@ -21,10 +21,25 @@ struct ppc_bus {
 
 struct ppc_state {
     struct ppc_bus bus;
-    uint32_t cr;
+
+    union {
+        uint32_t cr;
+
+        struct {
+            unsigned int cr0 : 4;
+            unsigned int cr1 : 4;
+            unsigned int cr2 : 4;
+            unsigned int cr3 : 4;
+            unsigned int cr4 : 4;
+            unsigned int cr5 : 4;
+            unsigned int cr6 : 4;
+            unsigned int cr7 : 4;
+        };
+    };
+
     uint64_t lr;
     uint64_t ctr;
-    uint64_t g[32];
+    uint64_t r[32];
     uint64_t xer;
     uint32_t pc;
     uint32_t opcode;
